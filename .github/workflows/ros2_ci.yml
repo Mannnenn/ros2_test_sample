@@ -24,6 +24,7 @@ jobs:
 
     container:
       image: ros:${{ matrix.rosdistro }}-ros-base
+      options: --memory=8g --memory-swap=8g
 
     steps:
       - name: Setup directories
@@ -53,8 +54,9 @@ jobs:
       - name: Build tests
         id: build_test
         run: |
+          cd ros2_ws &&
           . /opt/ros/${{ matrix.rosdistro }}/setup.sh && 
-          colcon build
+          colcon build --parallel-workers 1 --cmake-args -DCMAKE_BUILD_TYPE=Release
         continue-on-error: true
 
       - name: build_test command success
@@ -68,7 +70,9 @@ jobs:
       - name: Run tests
         id: run_test
         run: |
+          cd ros2_ws &&
           . /opt/ros/${{ matrix.rosdistro }}/setup.sh &&
+          . install/setup.sh &&
           colcon test && 
           colcon test-result
         continue-on-error: true
