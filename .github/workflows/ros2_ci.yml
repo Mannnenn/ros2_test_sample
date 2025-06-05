@@ -5,6 +5,11 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+#   workflow_dispatch:
+#   schedule:
+#     - cron: '0 0 * * *'
+#   release:
+#     types: [published]
 
 jobs:
   build_and_test:
@@ -15,34 +20,40 @@ jobs:
         rosdistro:
           - humble
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+
+    container:
+      image: ros:${{ matrix.rosdistro }}-ros-base
 
     steps:
+      - name: Setup directories
+        run: mkdir -p ros2_ws/src
+
       - name: Check out repository
         uses: actions/checkout@v3
-
-      - name: Setup ROS2
-        uses: ros-tooling/setup-ros@v0.7
         with:
-          required-ros-distributions: ${{ matrix.rosdistro }}
-
-      - name: Setup directories and copy source code
-        run: |
-          mkdir -p ../ros2_ws/src
-          cp -r . ../ros2_ws/src/ros2_topic_sample
+          path: ros2_ws/src/ros2_topic_sample
 
       - name: Install dependencies
         run: |
-          cd ../ros2_ws
-          sudo apt-get update
-          rosdep update
-          rosdep install --from-path src -i -y --rosdistro ${{ matrix.rosdistro }}
+          rosdep update && 
+          apt-get update && 
+          apt-get install -y \
+            libpcl-dev \
+            libeigen3-dev \
+            libopencv-dev \
+            ros-${{ matrix.rosdistro }}-pcl-conversions \
+            ros-${{ matrix.rosdistro }}-pcl-msgs \
+            ros-${{ matrix.rosdistro }}-cv-bridge && 
+          rosdep install --from-path . -i -y --rosdistro ${{ matrix.rosdistro }}
+
+      - name: Install diagnostic-updater
+        run: apt-get install ros-${{ matrix.rosdistro }}-diagnostic-updater
 
       - name: Build tests
         id: build_test
         run: |
-          cd ../ros2_ws
-          source /opt/ros/${{ matrix.rosdistro }}/setup.bash
+          . /opt/ros/${{ matrix.rosdistro }}/setup.sh && 
           colcon build
         continue-on-error: true
 
@@ -57,9 +68,8 @@ jobs:
       - name: Run tests
         id: run_test
         run: |
-          cd ../ros2_ws
-          source /opt/ros/${{ matrix.rosdistro }}/setup.bash
-          colcon test
+          . /opt/ros/${{ matrix.rosdistro }}/setup.sh &&
+          colcon test && 
           colcon test-result
         continue-on-error: true
 
